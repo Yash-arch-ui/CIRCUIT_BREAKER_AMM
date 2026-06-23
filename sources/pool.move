@@ -17,6 +17,7 @@ module circuit_breaker_amm::pool {
     const STATE_NORMAL: u8 = 0;
     const STATE_COOLDOWN: u8 = 1;
     const BPS_DENOMINATOR: u128 = 10000;
+    const FEE_BPS:u128 =30;// 0.30%
 
     public struct Pool<phantom X, phantom Y> has key {
         id: UID,
@@ -45,6 +46,11 @@ module circuit_breaker_amm::pool {
         amount_x: u64,
         amount_y: u64,
         lp_burned: u64,
+    }
+    public struct SwapExecuted has copy, drop{
+        pool_id: address,
+        amount_in: u64,
+        amount_out: u64,
     }
 
     public struct CircuitBreakerTripped has copy, drop {
@@ -144,6 +150,96 @@ module circuit_breaker_amm::pool {
 
         (coin_x, coin_y)
     }
+   public fun swap_x_for_y<X, Y>(
+    pool: &mut Pool<X, Y>,
+    coin_x: Coin<X>,
+    min_amount_out: u64,
+    ctx: &mut TxContext
+): Coin<Y> {
+    assert!(pool.state == STATE_NORMAL, EPoolPaused);
+
+    let reserve_x = balance::value(&pool.reserve_x);
+    let reserve_y = balance::value(&pool.reserve_y);
+
+    let amount_in = coin::value(&coin_x);
+
+    let amount_out =
+        get_amount_out(
+            amount_in,
+            reserve_x,
+            reserve_y
+        );
+
+    assert!(  amount_out >= min_amount_out, ESlippageExceeded );
+
+    balance::join(
+        &mut pool.reserve_x,
+        coin::into_balance(coin_x)
+    );
+
+    let coin_y = coin::from_balance(
+        balance::split(
+            &mut pool.reserve_y,
+            amount_out
+        ),
+        ctx
+    );
+
+    sui::event::emit(SwapExecuted {
+        pool_id: object::uid_to_address(&pool.id),
+        amount_in,
+        amount_out,
+    });
+
+    coin_y
+}
+
+   public fun swap_y_for_x<X, Y>(
+    pool: &mut Pool<X, Y>,
+    coin_y: Coin<Y>,
+    min_amount_out: u64,
+    ctx: &mut TxContext
+): Coin<X> {
+    assert!(pool.state == STATE_NORMAL, EPoolPaused);
+
+    let reserve_x = balance::value(&pool.reserve_x);
+    let reserve_y = balance::value(&pool.reserve_y);
+
+    let amount_in = coin::value(&coin_y);
+
+    let amount_out =
+        get_amount_out(
+            amount_in,
+            reserve_y,
+            reserve_x
+        );
+
+    assert!(
+        amount_out >= min_amount_out,
+        ESlippageExceeded
+    );
+
+    balance::join(
+        &mut pool.reserve_y,
+        coin::into_balance(coin_y)
+    );
+
+    let coin_x = coin::from_balance(
+        balance::split(
+            &mut pool.reserve_x,
+            amount_out
+        ),
+        ctx
+    );
+
+    sui::event::emit(SwapExecuted {
+        pool_id: object::uid_to_address(&pool.id),
+        amount_in,
+        amount_out,
+    });
+
+    coin_x
+}
 
     public fun reserve_x<X, Y>(pool: &Pool<X, Y>): u64 {
         balance::value(&pool.reserve_x)
@@ -188,5 +284,20 @@ module circuit_breaker_amm::pool {
             y = (y + x / y) / 2;
         };
         result
+    }
+    fun get_amount_out(
+        amount_in: u64,
+        reserve_in: u64,
+        reserve_out: u64
+    ): u64{
+        let amount_in_with_fee= (amount_in as u128)*(10000 - FEE_BPS);
+
+        let numerator = amount_in_with_fee * (reserve_out as u128) ;
+        let denominator = (reserve_in as u128) * 10000 + amount_in_with_fee ;
+        (numerator/denominator) as u64
+        /*
+         amountOut = (amountIn*997*reserveOut)/(reserveIn*1000+997*amountIn)
+         no semicolon for returning values in move !
+        */
     }
 }
