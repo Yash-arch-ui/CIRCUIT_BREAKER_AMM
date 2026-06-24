@@ -154,17 +154,26 @@ module circuit_breaker_amm::pool {
 
         (coin_x, coin_y)
     }
-   public fun swap_x_for_y<X, Y>(
+
+    public fun swap_x_for_y<X, Y>(
     pool: &mut Pool<X, Y>,
     coin_x: Coin<X>,
     min_amount_out: u64,
+    clock: &Clock,
     ctx: &mut TxContext
 ): Coin<Y> {
+    maybe_unpause(pool,clock);
     assert!(pool.state == STATE_NORMAL, EPoolPaused);
 
     let reserve_x = balance::value(&pool.reserve_x);
     let reserve_y = balance::value(&pool.reserve_y);
-
+    update_twap(pool);
+    let spot = spot_price(pool);
+    let deviation = deviation_bps(spot, pool.twap_price);
+    if(deviation > THRESHOLD_BPS){
+        trigger_circuit_breaker(pool, clock);
+        abort EPoolPaused
+    };
     let amount_in = coin::value(&coin_x);
 
     let amount_out =
@@ -202,13 +211,22 @@ module circuit_breaker_amm::pool {
     pool: &mut Pool<X, Y>,
     coin_y: Coin<Y>,
     min_amount_out: u64,
+    clock: &Clock,
     ctx: &mut TxContext
 ): Coin<X> {
+    maybe_unpause(pool, clock);
+
     assert!(pool.state == STATE_NORMAL, EPoolPaused);
 
     let reserve_x = balance::value(&pool.reserve_x);
     let reserve_y = balance::value(&pool.reserve_y);
-
+    update_twap(pool);
+    let spot = spot_price(pool);
+    let deviation = deviation_bps(spot, pool.twap_price);
+    if(deviation > THRESHOLD_BPS){
+        trigger_circuit_breaker(pool, clock);
+        abort EPoolPaused
+    };
     let amount_in = coin::value(&coin_y);
 
     let amount_out =
