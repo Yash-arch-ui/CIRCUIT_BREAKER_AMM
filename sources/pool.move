@@ -1,4 +1,3 @@
-
 module circuit_breaker_amm::pool {
     use sui::object::{Self, UID};
     use sui::transfer;
@@ -51,6 +50,11 @@ module circuit_breaker_amm::pool {
         pool_id: address,
         amount_in: u64,
         amount_out: u64,
+    }
+    public struct TWAPUpdated has copy, drop{
+        pool_id: address, 
+        old_twap: u128,
+        new_twap: u128,
     }
 
     public struct CircuitBreakerTripped has copy, drop {
@@ -274,7 +278,69 @@ module circuit_breaker_amm::pool {
     public fun threshold_bps(): u128 { THRESHOLD_BPS }
     public fun cooldown_ms(): u64 { COOLDOWN_MS }
     public fun bps_denominator(): u128 { BPS_DENOMINATOR }
+    fun update_twap<X,Y>(pool: &mut Pool<X, Y>){
+        let spot = spot_price(pool);
+        if(pool.twap_price == 0){
+            pool.twap_price = spot;
+            return 
+        };
+        pool.twap_price = (
+            pool.twap_price*9 + spot 
+        )/10;
+    }
+    fun trigger_circuit_breaker<X,Y>(
+        pool: &mut Pool<X,Y>,
+        clock: &Clock
+    ){
+        let spot = spot_price(pool);
+        pool.state = STATE_COOLDOWN;
+        pool.paused_until= clock::timestamp_ms(clock) + COOLDOWN_MS;
+        sui::event::emit(CircuitBreakerTripped{
+            pool_id: object::uid_to_address(&pool.id),
+            spot_price: spot,
+            twap_price: pool.twap_price,
+            deviation_bps: deviation_bps(spot, pool.twap_price),
+            paused_until: pool.paused_until,
+        });
 
+
+    }
+    fun maybe_unpause<X,Y>(
+        pool: &mut Pool<X,Y>, clock: &Clock){
+        if(pool.state == STATE_COOLDOWN && clock::timestamp_ms(clock) >= pool.paused_until){
+            pool.state = STATE_NORMAL;
+        };
+        }
+    
+    fun spot_price<X, Y>(
+    pool: &Pool<X, Y>
+): u128 {
+    let reserve_x = balance::value(&pool.reserve_x);
+    let reserve_y = balance::value(&pool.reserve_y);
+
+    if (reserve_x == 0 || reserve_y == 0) {
+        0
+    } else {
+        ((reserve_y as u128) * 1_000_000_000)
+            / (reserve_x as u128)
+    }
+}
+   fun abs_diff(  a: u128, b: u128): u128 {
+    if (a > b) {
+        a - b
+    } else {
+        b - a
+    }
+}
+
+    fun deviation_bps( spot: u128, twap: u128): u128{
+        if(twap ==0){
+            return 0;
+        };
+
+        abs_diff(spot, twap) * BPS_DENOMINATOR/twap
+    }
+       
     fun sqrt(x: u64): u64 {
         if (x == 0) return 0;
         let mut result = x;
