@@ -24,7 +24,6 @@ module circuit_breaker_amm::pool {
         reserve_y: Balance<Y>,
         lp_supply: u64,
         twap_price: u128,
-        last_update_ts: u64,
         state: u8,
         paused_until: u64,
     }
@@ -72,27 +71,39 @@ module circuit_breaker_amm::pool {
             reserve_y: balance::zero<Y>(),
             lp_supply: 0,
             twap_price: 0,
-            last_update_ts: 0,
             state: STATE_NORMAL,
             paused_until: 0,
         };
+        let pool_id = object::uid_to_address(&pool.id);
+        sui::event::emit(
+    PoolCreated {
+        pool_id
+    }
+);
         transfer::share_object(pool);
+        
     }
 
     public fun add_liquidity<X, Y>(
         pool: &mut Pool<X, Y>,
         coin_x: Coin<X>,
         coin_y: Coin<Y>,
+        clock: &Clock,
         ctx: &mut TxContext
     ): u64 {
+        maybe_unpause(pool, clock);
         assert!(pool.state == STATE_NORMAL, EPoolPaused);
         let amount_x = coin::value(&coin_x);
         let amount_y = coin::value(&coin_y);
         assert!(amount_x > 0, EZeroAmount);
         assert!(amount_y > 0, EZeroAmount);
-
+        if (pool.twap_price == 0) {
+         pool.twap_price =
+        ((amount_y as u128) * 1_000_000_000)
+        / (amount_x as u128);
+}
         let lp_to_mint = if (pool.lp_supply == 0) {
-            sqrt(amount_x * amount_y)
+            sqrt_u128((amount_x as u128) * (amount_y as u128))
         } else {
             let reserve_x = balance::value(&pool.reserve_x);
             let reserve_y = balance::value(&pool.reserve_y);
@@ -107,7 +118,7 @@ module circuit_breaker_amm::pool {
         balance::join(&mut pool.reserve_x, coin::into_balance(coin_x));
         balance::join(&mut pool.reserve_y, coin::into_balance(coin_y));
         pool.lp_supply = pool.lp_supply + lp_to_mint;
-
+           update_twap(pool);
         sui::event::emit(LiquidityAdded {
             pool_id: object::uid_to_address(&pool.id),
             amount_x,
@@ -121,10 +132,13 @@ module circuit_breaker_amm::pool {
     public fun remove_liquidity<X, Y>(
         pool: &mut Pool<X, Y>,
         lp_amount: u64,
+        clock: &Clock,
         ctx: &mut TxContext
     ): (Coin<X>, Coin<Y>) {
+        maybe_unpause(pool, clock);
         assert!(lp_amount > 0, EZeroAmount);
         assert!(pool.lp_supply > 0, EInsufficientLiquidity);
+        assert!(lp_amount <= pool.lp_supply,EInsufficientLiquidity);
 
         let reserve_x = balance::value(&pool.reserve_x);
         let reserve_y = balance::value(&pool.reserve_y);
@@ -144,6 +158,8 @@ module circuit_breaker_amm::pool {
             balance::split(&mut pool.reserve_y, (amount_y as u64)),
             ctx
         );
+            update_twap(pool);
+
 
         sui::event::emit(LiquidityRemoved {
             pool_id: object::uid_to_address(&pool.id),
@@ -167,22 +183,25 @@ module circuit_breaker_amm::pool {
 
     let reserve_x = balance::value(&pool.reserve_x);
     let reserve_y = balance::value(&pool.reserve_y);
-    update_twap(pool);
     let spot = spot_price(pool);
     let deviation = deviation_bps(spot, pool.twap_price);
     if(deviation > THRESHOLD_BPS){
         trigger_circuit_breaker(pool, clock);
         abort EPoolPaused
     };
+    update_twap(pool);
     let amount_in = coin::value(&coin_x);
-
+    assert!(amount_in > 0, EZeroAmount);
     let amount_out =
         get_amount_out(
             amount_in,
             reserve_x,
             reserve_y
         );
-
+    assert!(
+    amount_out < reserve_y,
+    EInsufficientLiquidity
+);
     assert!(  amount_out >= min_amount_out, ESlippageExceeded );
 
     balance::join(
@@ -220,22 +239,25 @@ module circuit_breaker_amm::pool {
 
     let reserve_x = balance::value(&pool.reserve_x);
     let reserve_y = balance::value(&pool.reserve_y);
-    update_twap(pool);
     let spot = spot_price(pool);
     let deviation = deviation_bps(spot, pool.twap_price);
     if(deviation > THRESHOLD_BPS){
         trigger_circuit_breaker(pool, clock);
         abort EPoolPaused
     };
+        update_twap(pool);
     let amount_in = coin::value(&coin_y);
-
+    assert!(amount_in > 0, EZeroAmount);
     let amount_out =
         get_amount_out(
             amount_in,
             reserve_y,
             reserve_x
         );
-
+     assert!(
+    amount_out < reserve_x,
+    EInsufficientLiquidity
+);
     assert!(
         amount_out >= min_amount_out,
         ESlippageExceeded
@@ -296,15 +318,25 @@ module circuit_breaker_amm::pool {
     public fun threshold_bps(): u128 { THRESHOLD_BPS }
     public fun cooldown_ms(): u64 { COOLDOWN_MS }
     public fun bps_denominator(): u128 { BPS_DENOMINATOR }
+
     fun update_twap<X,Y>(pool: &mut Pool<X, Y>){
+        let old=pool.twap_price;
         let spot = spot_price(pool);
-        if(pool.twap_price == 0){
+        if(old == 0){
             pool.twap_price = spot;
-            return 
-        };
-        pool.twap_price = (
-            pool.twap_price*9 + spot 
-        )/10;
+        }
+        else{
+            pool.twap_price= (old*9 + spot)/10;
+        }
+      sui::event::emit(
+        TWAPUpdated{
+            pool_id:
+                object::uid_to_address(&pool.id),
+            old_twap: old,
+            new_twap: pool.twap_price,
+        }
+    );
+
     }
     fun trigger_circuit_breaker<X,Y>(
         pool: &mut Pool<X,Y>,
@@ -324,10 +356,25 @@ module circuit_breaker_amm::pool {
 
     }
     fun maybe_unpause<X,Y>(
-        pool: &mut Pool<X,Y>, clock: &Clock){
-        if(pool.state == STATE_COOLDOWN && clock::timestamp_ms(clock) >= pool.paused_until){
-            pool.state = STATE_NORMAL;
-        };
+      pool: &mut Pool<X,Y>,
+    clock: &Clock
+){
+    if (
+        pool.state == STATE_COOLDOWN &&
+        clock::timestamp_ms(clock) >= pool.paused_until
+    ) {
+        pool.state = STATE_NORMAL;
+
+        // RESET TWAP
+        pool.twap_price = spot_price(pool);
+    };
+    sui::event::emit(
+    TWAPUpdated {
+        pool_id: object::uid_to_address(&pool.id),
+        old_twap: old_twap,
+        new_twap: pool.twap_price,
+    }
+);
         }
     
     fun spot_price<X, Y>(
@@ -384,4 +431,17 @@ module circuit_breaker_amm::pool {
          no semicolon for returning values in move !
         */
     }
+    fun sqrt_u128(x: u128): u64 {
+    if (x == 0) return 0;
+
+    let mut z = x;
+    let mut y = (x + 1) / 2;
+
+    while (y < z) {
+        z = y;
+        y = (x / y + y) / 2;
+    };
+
+    z as u64
+}
 }
