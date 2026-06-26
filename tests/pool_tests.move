@@ -5,6 +5,7 @@ module circuit_breaker_amm::pool_tests {
     use sui::test_scenario;
     use sui::coin;
     use sui::sui::SUI;
+    use sui:::clock::Clock;
 
     public struct USDC has drop {}
 
@@ -12,7 +13,7 @@ module circuit_breaker_amm::pool_tests {
     fun test_create_pool_add_liquidity() {
         let user = @0xA;
         let mut scenario = test_scenario::begin(user);
-
+        
         // Create pool
         test_scenario::next_tx(&mut scenario, user);
         {
@@ -28,6 +29,7 @@ module circuit_breaker_amm::pool_tests {
                 test_scenario::take_shared<
                     pool::Pool<SUI, USDC>
                 >(&scenario);
+            let clock = test_scenario::take_shared<Clock>(&scenario);
 
             let coin_x = coin::mint_for_testing<SUI>(
                 1000,
@@ -43,6 +45,7 @@ module circuit_breaker_amm::pool_tests {
                 &mut p,
                 coin_x,
                 coin_y,
+                &clock,
                 test_scenario::ctx(&mut scenario)
             );
 
@@ -52,6 +55,7 @@ module circuit_breaker_amm::pool_tests {
             assert!(pool::lp_supply(&p) == lp, 3);
 
             test_scenario::return_shared(p);
+            test_scenario::return_shared(clock);
         };
 
         test_scenario::end(scenario);
@@ -94,6 +98,7 @@ module circuit_breaker_amm::pool_tests {
                 coin_y,
                 test_scenario::ctx(&mut scenario)
             );
+        let clock = test_scenario::take_shared<Clock>(&scenario);
 
             let (out_x, out_y) = pool::remove_liquidity(
                 &mut p,
@@ -106,7 +111,7 @@ module circuit_breaker_amm::pool_tests {
 
             coin::burn_for_testing(out_x);
             coin::burn_for_testing(out_y);
-
+            test_scenario::ctx(&mut scenario);
             test_scenario::return_shared(p);
         };
 

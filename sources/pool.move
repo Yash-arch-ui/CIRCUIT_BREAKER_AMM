@@ -11,7 +11,7 @@ module circuit_breaker_amm::pool {
     const ESlippageExceeded: u64 = 2;
     const EInsufficientLiquidity: u64 = 3;
 
-    const THRESHOLD_BPS: u128 = 1000;
+    const THRESHOLD_BPS: u128 = 1000; // MEANS IF THE CURRENT PRICE SHIFTS BY MORE THAN 10%  FROM THE HISTROCIAL AVERAGE, THE CIRCUIT BREAKER TRIPS .
     const COOLDOWN_MS: u64 = 300_000;
     const STATE_NORMAL: u8 = 0;
     const STATE_COOLDOWN: u8 = 1;
@@ -52,7 +52,7 @@ module circuit_breaker_amm::pool {
     }
     public struct TWAPUpdated has copy, drop{
         pool_id: address, 
-        old_twap: u128,
+       
         new_twap: u128,
     }
 
@@ -86,13 +86,13 @@ module circuit_breaker_amm::pool {
 
     public fun add_liquidity<X, Y>(
         pool: &mut Pool<X, Y>,
-        coin_x: Coin<X>,
-        coin_y: Coin<Y>,
+        coin_x: Coin<X>, // this is the actual value of X 
+        coin_y: Coin<Y>, // this is the actual value of y
         clock: &Clock,
         ctx: &mut TxContext
     ): u64 {
         maybe_unpause(pool, clock);
-        assert!(pool.state == STATE_NORMAL, EPoolPaused);
+        assert!(pool.state == STATE_NORMAL, EPoolPaused); 
         let amount_x = coin::value(&coin_x);
         let amount_y = coin::value(&coin_y);
         assert!(amount_x > 0, EZeroAmount);
@@ -101,7 +101,7 @@ module circuit_breaker_amm::pool {
          pool.twap_price =
         ((amount_y as u128) * 1_000_000_000)
         / (amount_x as u128);
-}
+};
         let lp_to_mint = if (pool.lp_supply == 0) {
             sqrt_u128((amount_x as u128) * (amount_y as u128))
         } else {
@@ -327,12 +327,11 @@ module circuit_breaker_amm::pool {
         }
         else{
             pool.twap_price= (old*9 + spot)/10;
-        }
+        };
       sui::event::emit(
         TWAPUpdated{
             pool_id:
                 object::uid_to_address(&pool.id),
-            old_twap: old,
             new_twap: pool.twap_price,
         }
     );
@@ -371,7 +370,7 @@ module circuit_breaker_amm::pool {
     sui::event::emit(
     TWAPUpdated {
         pool_id: object::uid_to_address(&pool.id),
-        old_twap: old_twap,
+     
         new_twap: pool.twap_price,
     }
 );
