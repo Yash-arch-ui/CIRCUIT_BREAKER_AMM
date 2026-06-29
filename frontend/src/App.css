@@ -3,7 +3,6 @@
   body {
     @apply bg-[#050505] text-white antialiased selection:bg-pink-500/30;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    /* Ambient neon background glows from image_075458.jpg */
     background-image: 
       radial-gradient(circle at 15% 20%, rgba(236, 72, 153, 0.12) 0%, transparent 40%),
       radial-gradient(circle at 85% 15%, rgba(139, 92, 246, 0.08) 0%, transparent 40%);

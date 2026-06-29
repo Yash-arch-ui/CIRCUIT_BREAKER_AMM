@@ -13,7 +13,6 @@ export default function SwapCard() {
     if (!account || !amountIn || !pool) return;
 
     const amountInMist = BigInt(Math.floor(Number(amountIn) * 1e9));
-    // 1% slippage
     const minOut = (amountInMist * pool.reserveY / pool.reserveX) * 99n / 100n;
 
     swap({
@@ -29,7 +28,6 @@ export default function SwapCard() {
   return (
     <div className="p-6 bg-zinc-900/20 rounded-2xl border border-zinc-800/60 backdrop-blur-md hover:border-zinc-700/80 transition-all duration-300 flex flex-col justify-between min-h-[340px] w-full max-w-md mx-auto sm:mx-0">
       
-      {/* Header section matching style of image_075458.jpg */}
       <div>
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-sm font-semibold tracking-wide text-zinc-200 uppercase font-mono">
@@ -37,12 +35,11 @@ export default function SwapCard() {
           </h3>
           {isPaused && (
             <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider font-mono bg-red-500/10 text-red-400 border border-red-500/20 animate-pulse">
-              ⚠️ Pool Paused
+               Pool Paused
             </span>
           )}
         </div>
 
-        {/* Input Field Section */}
         <div className="space-y-4 mb-6">
           <div className="relative">
             <label className="block text-[10px] text-zinc-500 uppercase tracking-wide font-mono mb-1.5">
@@ -65,7 +62,6 @@ export default function SwapCard() {
         </div>
       </div>
 
-      {/* Stats Breakdown (Muted developer metrics) */}
       <div className="border-t border-zinc-800/50 pt-4 mb-6 space-y-2 text-xs font-mono">
         <div className="flex justify-between">
           <span className="text-zinc-500">Spot Price</span>
@@ -81,7 +77,6 @@ export default function SwapCard() {
         </div>
       </div>
 
-      {/* Core Action Button (Exact matching gradient & outer glow from image_075458.jpg) */}
       <button
         onClick={handleSwap}
         disabled={isPending || !account || isPaused || !amountIn}

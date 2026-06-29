@@ -24,7 +24,6 @@ export default function PoolCard() {
   return (
     <div className="p-6 bg-zinc-900/20 rounded-2xl border border-zinc-800/60 backdrop-blur-md hover:border-zinc-700/80 transition-all duration-300 flex flex-col justify-between min-h-[220px] group">
       <div>
-        {/* Header section matching style of image_075458.jpg */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold tracking-wide text-zinc-200 uppercase font-mono">
             Pool Information
@@ -34,7 +33,6 @@ export default function PoolCard() {
           </span>
         </div>
 
-        {/* Total Liquidity Highlight inspired by the bold neon metrics */}
         <div className="mb-4">
           <div className="text-3xl font-semibold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-violet-400">
             {totalLiquidity.toLocaleString()}
@@ -45,7 +43,6 @@ export default function PoolCard() {
         </div>
       </div>
 
-      {/* Grid of secondary deep stats */}
       <div className="grid grid-cols-2 gap-y-3 gap-x-2 border-t border-zinc-800/50 pt-3 text-xs font-mono">
         <div>
           <span className="block text-[10px] text-zinc-500 uppercase tracking-wide">Reserve X</span>

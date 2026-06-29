@@ -1,0 +1,104 @@
+import { useState } from 'react';
+import { useCurrentAccount, useSuiClientQuery } from '@mysten/dapp-kit';
+import { useAddLiquidity } from '../hooks/useAddLiquidity';
+import { COIN_X_TYPE, COIN_Y_TYPE } from '../utils/constants';
+
+export default function AddLiquidityCard() {
+  const account = useCurrentAccount();
+  const { addLiquidity, isPending } = useAddLiquidity();
+
+  const [amountX, setAmountX] = useState('');
+  const [amountY, setAmountY] = useState('');
+
+  const { data: coinsX } = useSuiClientQuery('getCoins', {
+    owner: account?.address || '',
+    coinType: COIN_X_TYPE,
+  }, { enabled: !!account });
+
+  const { data: coinsY } = useSuiClientQuery('getCoins', {
+    owner: account?.address || '',
+    coinType: COIN_Y_TYPE,
+  }, { enabled: !!account });
+
+  const handleAddLiquidity = () => {
+    if (!account || !amountX || !amountY) return;
+
+    const coinXObjectId = coinsX?.data[0]?.coinObjectId;
+    const coinYObjectId = coinsY?.data[0]?.coinObjectId;
+
+    if (!coinXObjectId || !coinYObjectId) {
+      alert("Insufficient asset objects found in your wallet for this pool.");
+      return;
+    }
+
+    const rawAmountX = BigInt(Math.floor(Number(amountX) * 1e9)).toString();
+    const rawAmountY = BigInt(Math.floor(Number(amountY) * 1e9)).toString();
+
+    addLiquidity({
+      coinXObjectId,
+      coinYObjectId,
+      amountX: rawAmountX,
+      amountY: rawAmountY,
+      onSuccess: () => {
+        setAmountX('');
+        setAmountY('');
+      }
+    });
+  };
+
+  return (
+    <div className="w-full max-w-[380px] bg-[#131316] border border-[#222226] rounded-2xl p-7 flex flex-col justify-between">
+      <h3 className="text-white text-[0.85rem] font-semibold uppercase tracking-wider mb-6">
+        Deposit Liquidity
+      </h3>
+      
+      <div>
+        <div className="bg-[#0b0b0d] border border-[#1c1c21] rounded-xl p-3 mb-4">
+          <label className="text-[#555560] text-[0.65rem] font-bold uppercase block mb-1">
+            Pool Supply (Asset X)
+          </label>
+          <div className="flex justify-between items-center">
+            <input
+              type="number"
+              value={amountX}
+              onChange={(e) => setAmountX(e.target.value)}
+              placeholder="0.00"
+              disabled={!account}
+              className="bg-transparent border-0 text-white text-lg font-medium outline-none w-[70%] focus:ring-0 p-0"
+            />
+            <span className="text-[#888896] text-[0.85rem] font-semibold tracking-wide">
+              COIN X
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-[#0b0b0d] border border-[#1c1c21] rounded-xl p-3 mb-4">
+          <label className="text-[#555560] text-[0.65rem] font-bold uppercase block mb-1">
+            Pool Supply (Asset Y)
+          </label>
+          <div className="flex justify-between items-center">
+            <input
+              type="number"
+              value={amountY}
+              onChange={(e) => setAmountY(e.target.value)}
+              placeholder="0.00"
+              disabled={!account}
+              className="bg-transparent border-0 text-white text-lg font-medium outline-none w-[70%] focus:ring-0 p-0"
+            />
+            <span className="text-[#888896] text-[0.85rem] font-semibold tracking-wide">
+              COIN Y
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <button 
+        onClick={handleAddLiquidity} 
+        disabled={isPending || !account || !amountX || !amountY}
+        className="w-full bg-[#252529] border border-[#303035] rounded-xl text-[#e4e4e7] text-xs font-semibold tracking-wider uppercase p-4 mt-4 transition-all duration-200 opacity-100 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#1c1c1f]"
+      >
+        {isPending ? 'Supplying Assets...' : 'Supply Liquidity →'}
+      </button>
+    </div>
+  );
+}

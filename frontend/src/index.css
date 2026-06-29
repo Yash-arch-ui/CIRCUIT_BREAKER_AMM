@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
 @theme {
-  /* You can add custom v4 config here if needed */
 }
 
 @layer base {
