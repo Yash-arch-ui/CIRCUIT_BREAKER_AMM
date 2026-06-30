@@ -10,13 +10,16 @@ export default function SwapCard() {
   const [amountIn, setAmountIn] = useState('');
 
   const handleSwap = () => {
-    if (!account || !amountIn || !pool) return;
+if (!account || !amountIn || !pool) return;
 
     const amountInMist = BigInt(Math.floor(Number(amountIn) * 1e9));
-    const minOut = (amountInMist * pool.reserveY / pool.reserveX) * 99n / 100n;
+    const currentBalanceX = BigInt(pool.balance_x);
+    const currentBalanceY = BigInt(pool.balance_y);
+
+    const minOut = (amountInMist * currentBalanceY / currentBalanceX) * 99n / 100n;
 
     swap({
-      coinObjectId: 'YOUR_COIN_OBJECT_ID', // fetch from wallet
+      coinObjectId: 'PASTE_YOUR_MINTED_COIN_X_OBJECT_ID_HERE', 
       amountIn: amountInMist,
       minAmountOut: minOut,
       isXtoY: true,
@@ -72,7 +75,7 @@ export default function SwapCard() {
         <div className="flex justify-between">
           <span className="text-zinc-500">Reserves (X / Y)</span>
           <span className="text-zinc-400">
-            {pool?.reserveX ? pool.reserveX.toString() : '0'} / {pool?.reserveY ? pool.reserveY.toString() : '0'}
+            {pool?.balance_x ? (Number(pool.balance_x) / 1e9).toFixed(2) : '0'} / {pool?.balance_y ? (Number(pool.balance_y) / 1e9).toFixed(2) : '0'}
           </span>
         </div>
       </div>

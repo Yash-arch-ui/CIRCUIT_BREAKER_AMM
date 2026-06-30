@@ -18,7 +18,6 @@ module circuit_breaker_amm::token_y {
         );
         sui::transfer::public_freeze_object(metadata);
         
-        // Method syntax ctx.sender() works perfectly in Move 2024!
         sui::transfer::public_transfer(treasury_cap, ctx.sender());
     }
 

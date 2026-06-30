@@ -12,25 +12,32 @@ export function usePool() {
         id: POOL_ID,
         options: { showContent: true },
       });
-
-      if (!obj.data || !obj.data.content || obj.data.content.dataType !== 'moveObject') {
-        throw new Error("Failed to fetch pool object content or object is not a Move Object");
+      
+      console.log("raw pool object:", obj);
+      
+      const fields = obj.data?.content?.fields;
+      console.log(" EXACT FIELDS DATA:", JSON.stringify(fields, null, 2));
+            if (!fields) {
+        console.log("No fields found yet.....");
+        return null;
       }
-      const fields = obj.data.content.fields;
-
-      const resX = Number(fields.reserve_x || 0);
-      const resY = Number(fields.reserve_y || 0);
+      
+      const rawReserveX = fields.balance_x?.fields?.value ?? fields.balance_x ?? 0;
+      const rawReserveY = fields.balance_y?.fields?.value ?? fields.balance_y ?? 0;
+      const resX = Number(rawReserveX);
+      const resY = Number(rawReserveY);
       const computedSpotPrice = resX > 0 ? resY / resX : 0;
 
       return {
-        reserveX:   BigInt(fields.reserve_x ?? 0),
-        reserveY:   BigInt(fields.reserve_y ?? 0),
-        spotPrice:  computedSpotPrice,
-        twap:       BigInt(fields.last_price_cumulative ?? 0),
-        paused:     !!fields.paused,
-        cooldown:   Number(fields.last_swap_timestamp ?? 0),
-        lpSupply:   BigInt(fields.lp_supply?.fields?.value ?? 0),
+        reserveX: BigInt(rawReserveX),
+        reserveY: BigInt(rawReserveY),
+        spotPrice: computedSpotPrice,
+        twap: BigInt(fields.last_price_cumulative ?? 0),
+        paused: !!fields.paused,
+        cooldown: Number(fields.last_swap_timestamp ?? 0),
+        lpSupply: BigInt(fields.lp_supply?.fields?.value ?? 0),
       };
+      
     },
     refetchInterval: 5000, 
   });

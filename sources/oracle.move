@@ -2,8 +2,7 @@ module circuit_breaker_amm::oracle {
     
     public struct PriceOracle has key, store {
         id: UID,
-        price: u64, // Scaled 10^9 reference spot price
-    }
+        price: u64, 
 
     fun init(ctx: &mut TxContext) {
         sui::transfer::share_object(PriceOracle {

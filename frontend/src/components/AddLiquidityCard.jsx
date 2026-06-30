@@ -9,22 +9,30 @@ export default function AddLiquidityCard() {
 
   const [amountX, setAmountX] = useState('');
   const [amountY, setAmountY] = useState('');
-
-  const { data: coinsX } = useSuiClientQuery('getCoins', {
+  
+  const { data: coinsX, refetch: refetchX } = useSuiClientQuery('getCoins', {
     owner: account?.address || '',
     coinType: COIN_X_TYPE,
   }, { enabled: !!account });
 
-  const { data: coinsY } = useSuiClientQuery('getCoins', {
+  const { data: coinsY, refetch: refetchY } = useSuiClientQuery('getCoins', {
     owner: account?.address || '',
     coinType: COIN_Y_TYPE,
   }, { enabled: !!account });
 
+  const balanceX = coinsX?.data?.[0]?.balance 
+    ? (Number(coinsX.data[0].balance) / 1e9).toLocaleString(undefined, { minimumFractionDigits: 2 }) 
+    : '0.00';
+
+  const balanceY = coinsY?.data?.[0]?.balance 
+    ? (Number(coinsY.data[0].balance) / 1e9).toLocaleString(undefined, { minimumFractionDigits: 2 }) 
+    : '0.00';
+
   const handleAddLiquidity = () => {
     if (!account || !amountX || !amountY) return;
 
-    const coinXObjectId = coinsX?.data[0]?.coinObjectId;
-    const coinYObjectId = coinsY?.data[0]?.coinObjectId;
+    const coinXObjectId = coinsX?.data?.[0]?.coinObjectId;
+    const coinYObjectId = coinsY?.data?.[0]?.coinObjectId;
 
     if (!coinXObjectId || !coinYObjectId) {
       alert("Insufficient asset objects found in your wallet for this pool.");
@@ -33,6 +41,13 @@ export default function AddLiquidityCard() {
 
     const rawAmountX = BigInt(Math.floor(Number(amountX) * 1e9)).toString();
     const rawAmountY = BigInt(Math.floor(Number(amountY) * 1e9)).toString();
+    
+    console.log(" CHECKING INPUTS:", { 
+       coinXObjectId, 
+       coinYObjectId, 
+       amountX: rawAmountX, 
+       amountY: rawAmountY 
+    });
 
     addLiquidity({
       coinXObjectId,
@@ -42,6 +57,8 @@ export default function AddLiquidityCard() {
       onSuccess: () => {
         setAmountX('');
         setAmountY('');
+        refetchX();
+        refetchY();
       }
     });
   };
@@ -54,9 +71,14 @@ export default function AddLiquidityCard() {
       
       <div>
         <div className="bg-[#0b0b0d] border border-[#1c1c21] rounded-xl p-3 mb-4">
-          <label className="text-[#555560] text-[0.65rem] font-bold uppercase block mb-1">
-            Pool Supply (Asset X)
-          </label>
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-[#555560] text-[0.65rem] font-bold uppercase block">
+              Pool Supply (Asset X)
+            </label>
+            <span className="text-[#888896] text-[0.70rem] font-medium">
+              Max: {balanceX}
+            </span>
+          </div>
           <div className="flex justify-between items-center">
             <input
               type="number"
@@ -73,9 +95,14 @@ export default function AddLiquidityCard() {
         </div>
 
         <div className="bg-[#0b0b0d] border border-[#1c1c21] rounded-xl p-3 mb-4">
-          <label className="text-[#555560] text-[0.65rem] font-bold uppercase block mb-1">
-            Pool Supply (Asset Y)
-          </label>
+          <div className="flex justify-between items-center mb-1">
+            <label className="text-[#555560] text-[0.65rem] font-bold uppercase block">
+              Pool Supply (Asset Y)
+            </label>
+            <span className="text-[#888896] text-[0.70rem] font-medium">
+              Max: {balanceY}
+            </span>
+          </div>
           <div className="flex justify-between items-center">
             <input
               type="number"
